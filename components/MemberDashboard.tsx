@@ -2,16 +2,18 @@ import React, { useState, useMemo } from 'react';
 import { WorkRecord, User } from '../types';
 import { RecordForm } from './RecordForm';
 import { exportToCSV } from '../services/trackerService';
-import { Calendar, Clock, FileText, Plus, Download } from 'lucide-react';
+import { Calendar, Clock, FileText, Plus, Download, Edit2, Trash2 } from 'lucide-react';
 
 interface MemberDashboardProps {
   currentUser: User;
   records: WorkRecord[];
   onSave: (record: WorkRecord) => void;
+  onDelete: (id: string) => void;
 }
 
-export const MemberDashboard: React.FC<MemberDashboardProps> = ({ currentUser, records, onSave }) => {
+export const MemberDashboard: React.FC<MemberDashboardProps> = ({ currentUser, records, onSave, onDelete }) => {
   const [isCreating, setIsCreating] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<WorkRecord | null>(null);
   const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0, 7));
 
   // Filter records for current user
@@ -30,6 +32,12 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ currentUser, r
 
   // Calculate monthly stats
   const monthlyHours = filteredRecords.reduce((sum, r) => sum + r.totalHours, 0);
+
+  const confirmDelete = (id: string) => {
+    if (window.confirm('Are you sure you want to delete this record?')) {
+      onDelete(id);
+    }
+  };
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
@@ -78,6 +86,23 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ currentUser, r
         </div>
       )}
 
+      {editingRecord && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="w-full max-w-2xl my-auto">
+             <RecordForm
+                initialData={editingRecord}
+                developerName={currentUser.name}
+                onSave={(r) => {
+                    onSave(r);
+                    setEditingRecord(null);
+                }}
+                onCancel={() => setEditingRecord(null)}
+                isEditing={true}
+             />
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center">
             <div className="p-3 bg-blue-50 text-blue-600 rounded-lg mr-4">
@@ -99,7 +124,7 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ currentUser, r
             </div>
             <div>
                 <p className="text-sm text-slate-500 font-medium">Monthly Hours</p>
-                <p className="text-2xl font-bold text-slate-900">{monthlyHours.toFixed(1)}h</p>
+                <p className="text-2xl font-bold text-slate-900">{monthlyHours.toFixed(2)}h</p>
             </div>
         </div>
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center">
@@ -127,7 +152,25 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ currentUser, r
                             <span className="font-semibold text-slate-700">{new Date(record.date).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}</span>
                             <span className="text-xs px-2 py-1 bg-white border border-slate-200 rounded text-slate-500">{record.totalProjects} projects</span>
                         </div>
-                        <span className="font-bold text-indigo-600">{record.totalHours} hrs</span>
+                        <div className="flex items-center space-x-4">
+                             <span className="font-bold text-indigo-600">{record.totalHours} hrs</span>
+                             <div className="flex items-center space-x-1 pl-4 border-l border-slate-200">
+                                <button
+                                    onClick={() => setEditingRecord(record)}
+                                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                                    title="Edit Record"
+                                >
+                                    <Edit2 size={16} />
+                                </button>
+                                <button
+                                    onClick={() => confirmDelete(record.id)}
+                                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                    title="Delete Record"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                             </div>
+                        </div>
                     </div>
                     <div className="p-6">
                         <div className="space-y-4">

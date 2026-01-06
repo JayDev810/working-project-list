@@ -31,23 +31,25 @@ const App: React.FC = () => {
     setUsernameInput('');
   };
 
-  const handleMemberLogin = (e: React.FormEvent) => {
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!usernameInput.trim()) return;
+    const trimmedName = usernameInput.trim();
+    if (!trimmedName) return;
 
-    setCurrentUser({
-      id: crypto.randomUUID(),
-      name: usernameInput.trim(),
-      role: 'MEMBER'
-    });
-  };
-
-  const handleAdminLogin = () => {
-    setCurrentUser({
-      id: 'admin',
-      name: 'Admin',
-      role: 'ADMIN'
-    });
+    // Secret Admin Access Check
+    if (trimmedName === 'Admin Jay') {
+      setCurrentUser({
+        id: 'admin',
+        name: trimmedName,
+        role: 'ADMIN'
+      });
+    } else {
+      setCurrentUser({
+        id: crypto.randomUUID(),
+        name: trimmedName,
+        role: 'MEMBER'
+      });
+    }
   };
 
   if (!currentUser) {
@@ -63,7 +65,7 @@ const App: React.FC = () => {
           </div>
           
           <div className="p-8">
-            <form onSubmit={handleMemberLogin} className="space-y-6">
+            <form onSubmit={handleLogin} className="space-y-6">
               <div>
                 <label htmlFor="username" className="block text-sm font-medium text-slate-700 mb-2">
                   Full Name
@@ -88,16 +90,6 @@ const App: React.FC = () => {
                 <ArrowRight size={18} className="ml-2" />
               </button>
             </form>
-
-            <div className="mt-8 pt-6 border-t border-slate-100 text-center">
-               <button 
-                  onClick={handleAdminLogin}
-                  className="text-slate-400 hover:text-indigo-600 text-sm font-medium flex items-center justify-center mx-auto transition-colors"
-               >
-                  <Shield size={14} className="mr-1.5" />
-                  Access Admin Dashboard
-               </button>
-            </div>
           </div>
         </div>
         <p className="mt-6 text-center text-xs text-slate-400">
@@ -150,6 +142,7 @@ const App: React.FC = () => {
             currentUser={currentUser}
             records={records}
             onSave={handleSaveRecord}
+            onDelete={handleDeleteRecord}
           />
         )}
       </main>

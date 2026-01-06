@@ -78,7 +78,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ records, onUpdat
               <h3 className="text-sm font-medium text-slate-500">Total Hours</h3>
               <div className="p-2 bg-green-50 text-green-600 rounded-lg"><Clock size={18}/></div>
            </div>
-           <p className="text-2xl font-bold text-slate-900">{totalHours.toFixed(1)}h</p>
+           <p className="text-2xl font-bold text-slate-900">{totalHours.toFixed(2)}h</p>
         </div>
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
            <div className="flex items-center justify-between mb-2">
@@ -92,7 +92,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ records, onUpdat
               <h3 className="text-sm font-medium text-slate-500">Avg Hours / Day</h3>
               <div className="p-2 bg-amber-50 text-amber-600 rounded-lg"><AlertCircle size={18}/></div>
            </div>
-           <p className="text-2xl font-bold text-slate-900">{avgHoursPerDay.toFixed(1)}h</p>
+           <p className="text-2xl font-bold text-slate-900">{avgHoursPerDay.toFixed(2)}h</p>
         </div>
       </div>
 

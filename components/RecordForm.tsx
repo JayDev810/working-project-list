@@ -140,7 +140,7 @@ export const RecordForm: React.FC<RecordFormProps> = ({
         <div className="flex justify-between items-center mb-2">
           <label className="block text-sm font-medium text-slate-700">Projects (Max 4)</label>
           <span className="text-sm font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded">
-            Total: {totalHours.toFixed(1)} hrs
+            Total: {totalHours.toFixed(2)} hrs
           </span>
         </div>
         
@@ -173,7 +173,7 @@ export const RecordForm: React.FC<RecordFormProps> = ({
                     <input
                         type="number"
                         min="0"
-                        step="0.5"
+                        step="any"
                         value={project.workingHours}
                         onChange={(e) => handleProjectChange(index, 'workingHours', parseFloat(e.target.value) || 0)}
                         className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-indigo-500"
