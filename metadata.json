@@ -1,0 +1,5 @@
+{
+  "name": "Daily Project Work Tracker",
+  "description": "A comprehensive daily work tracking application for developers and administrators with persistent storage, filtering, and export capabilities.",
+  "requestFramePermissions": []
+}
