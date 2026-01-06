@@ -10,20 +10,49 @@ const App: React.FC = () => {
   const [records, setRecords] = useState<WorkRecord[]>([]);
   const [usernameInput, setUsernameInput] = useState('');
 
-  // Load records on mount
+  // Function to refresh records from storage
+  const refreshRecords = () => {
+    setRecords(getRecords());
+  };
+
+  // Initial load and setup listeners for sync
   useEffect(() => {
-    const data = getRecords();
-    setRecords(data);
+    refreshRecords();
+
+    // Listen for storage changes (cross-tab sync)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'daily_project_tracker_data' || e.key === null) {
+        refreshRecords();
+      }
+    };
+
+    // Listen for window focus to ensure data is fresh when returning to tab
+    const handleFocus = () => {
+      refreshRecords();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
+
+  // Also refresh when user logs in/out
+  useEffect(() => {
+    refreshRecords();
+  }, [currentUser]);
 
   const handleSaveRecord = (record: WorkRecord) => {
     saveRecord(record);
-    setRecords(getRecords()); // Refresh from storage
+    refreshRecords(); // Refresh local state immediately
   };
 
   const handleDeleteRecord = (id: string) => {
     deleteRecord(id);
-    setRecords(getRecords()); // Refresh from storage
+    refreshRecords(); // Refresh local state immediately
   };
 
   const handleLogout = () => {
