@@ -6,6 +6,7 @@ import {
   subscribeToRecords, 
   saveRecord, 
   deleteRecord, 
+  deleteRecordsByDeveloper,
   migrateLocalData,
   fetchRecords
 } from './services/trackerService';
@@ -18,6 +19,7 @@ const App: React.FC = () => {
   const [migrating, setMigrating] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Subscribe to realtime data
   useEffect(() => {
@@ -39,27 +41,59 @@ const App: React.FC = () => {
   }, []);
 
   const handleSaveRecord = async (record: WorkRecord) => {
+    setIsSaving(true);
+    // Optimistic Update
+    setRecords(prev => {
+        const index = prev.findIndex(r => r.id === record.id);
+        if (index >= 0) {
+            const newRecords = [...prev];
+            newRecords[index] = record;
+            return newRecords;
+        }
+        return [record, ...prev];
+    });
+
     try {
         await saveRecord(record);
-        // Explicitly fetch latest data to ensure UI reflects changes immediately
-        // This is a backup in case realtime events are slow
+        // Explicitly fetch latest data to ensure consistency
         const updatedRecords = await fetchRecords();
         setRecords(updatedRecords);
         setLastSynced(new Date());
     } catch (e: any) {
         alert("Failed to save record: " + e.message);
+        // Revert on error (simplified for now by re-fetching)
+        const currentRecords = await fetchRecords().catch(() => []);
+        setRecords(currentRecords);
+    } finally {
+        setIsSaving(false);
     }
   };
 
   const handleDeleteRecord = async (id: string) => {
+    // Optimistic Update
+    setRecords(prev => prev.filter(r => r.id !== id));
+    
     try {
         await deleteRecord(id);
-        // Explicitly fetch latest data
         const updatedRecords = await fetchRecords();
         setRecords(updatedRecords);
         setLastSynced(new Date());
     } catch (e: any) {
         alert("Failed to delete record: " + e.message);
+    }
+  };
+
+  const handleDeleteDeveloper = async (developerName: string) => {
+    // Optimistic update
+    setRecords(prev => prev.filter(r => r.developerName !== developerName));
+
+    try {
+        await deleteRecordsByDeveloper(developerName);
+        const updatedRecords = await fetchRecords();
+        setRecords(updatedRecords);
+        setLastSynced(new Date());
+    } catch (e: any) {
+        alert("Failed to delete developer data: " + e.message);
     }
   };
 
@@ -215,7 +249,12 @@ const App: React.FC = () => {
                     <div className="flex items-center px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">
                         <Cloud size={10} className="mr-1" /> Online
                     </div>
-                    {lastSynced && (
+                    {isSaving && (
+                         <div className="flex items-center px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium">
+                            <RefreshCw size={10} className="mr-1 animate-spin" /> Saving...
+                         </div>
+                    )}
+                    {!isSaving && lastSynced && (
                         <div className="hidden md:flex items-center text-xs text-slate-400">
                             <RefreshCw size={10} className="mr-1" />
                             Synced {lastSynced.toLocaleTimeString()}
@@ -256,6 +295,7 @@ const App: React.FC = () => {
             records={records}
             onUpdate={handleSaveRecord}
             onDelete={handleDeleteRecord}
+            onDeleteDeveloper={handleDeleteDeveloper}
           />
         ) : (
           <MemberDashboard

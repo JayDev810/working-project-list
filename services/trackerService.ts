@@ -115,7 +115,8 @@ export const saveRecord = async (record: WorkRecord) => {
       .upsert({ 
         id: record.id, 
         content: record 
-      });
+      })
+      .select();
 
     if (error) throw error;
     console.log("Record saved to Supabase.");
@@ -139,6 +140,24 @@ export const deleteRecord = async (id: string) => {
   } catch (e: any) {
     console.error("Error deleting record:", e);
     throw new Error(e.message || "Failed to delete");
+  }
+};
+
+export const deleteRecordsByDeveloper = async (developerName: string) => {
+  if (!isConfigured() || !supabase) throw new Error("Supabase not configured");
+
+  try {
+    // Delete all records where the JSON content field has a developerName matching the argument
+    const { error } = await supabase
+      .from('work_records')
+      .delete()
+      .eq('content->>developerName', developerName);
+
+    if (error) throw error;
+    console.log(`All records for ${developerName} deleted from Supabase.`);
+  } catch (e: any) {
+    console.error("Error deleting developer records:", e);
+    throw new Error(e.message || "Failed to delete developer records");
   }
 };
 

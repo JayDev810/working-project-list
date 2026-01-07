@@ -2,15 +2,16 @@ import React, { useState, useMemo } from 'react';
 import { WorkRecord, User } from '../types';
 import { RecordForm } from './RecordForm';
 import { exportToCSV } from '../services/trackerService';
-import { Download, Search, Filter, Trash2, Edit2, Users, Clock, AlertCircle } from 'lucide-react';
+import { Download, Search, Filter, Trash2, Edit2, Users, Clock, AlertCircle, X } from 'lucide-react';
 
 interface AdminDashboardProps {
   records: WorkRecord[];
   onUpdate: (record: WorkRecord) => void;
   onDelete: (id: string) => void;
+  onDeleteDeveloper: (name: string) => void;
 }
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ records, onUpdate, onDelete }) => {
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ records, onUpdate, onDelete, onDeleteDeveloper }) => {
   const [filterMonth, setFilterMonth] = useState(''); // Empty = All time
   const [selectedDevelopers, setSelectedDevelopers] = useState<string[]>([]);
   const [editingRecord, setEditingRecord] = useState<WorkRecord | null>(null);
@@ -48,6 +49,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ records, onUpdat
     }
   };
 
+  const confirmDeleteDeveloper = (e: React.MouseEvent, devName: string) => {
+    e.stopPropagation(); // Prevent toggling the filter when clicking delete
+    const confirmMsg = `WARNING: Are you sure you want to remove developer "${devName}"?\n\nThis will permanently delete ALL work records associated with this developer.\n\nThis action cannot be undone.`;
+    if (window.confirm(confirmMsg)) {
+        onDeleteDeveloper(devName);
+        // Also remove from selection if currently selected
+        if (selectedDevelopers.includes(devName)) {
+            toggleDeveloperFilter(devName);
+        }
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -66,13 +79,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ records, onUpdat
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {/* Swapped Card 1: Total Developers */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-slate-500">Total Records</h3>
-              <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><Search size={18}/></div>
+              <h3 className="text-sm font-medium text-slate-500">Total Developers</h3>
+              <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Users size={18}/></div>
            </div>
-           <p className="text-2xl font-bold text-slate-900">{filteredRecords.length}</p>
+           <p className="text-2xl font-bold text-slate-900">{activeDevsCount}</p>
         </div>
+        
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
            <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-slate-500">Total Hours</h3>
@@ -80,13 +95,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ records, onUpdat
            </div>
            <p className="text-2xl font-bold text-slate-900">{totalHours.toFixed(2)}h</p>
         </div>
+        
+        {/* Swapped Card 3: Total Records */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-slate-500">Active Developers</h3>
-              <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Users size={18}/></div>
+              <h3 className="text-sm font-medium text-slate-500">Total Records</h3>
+              <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><Search size={18}/></div>
            </div>
-           <p className="text-2xl font-bold text-slate-900">{activeDevsCount}</p>
+           <p className="text-2xl font-bold text-slate-900">{filteredRecords.length}</p>
         </div>
+
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
            <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-slate-500">Avg Hours / Day</h3>
@@ -122,21 +140,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ records, onUpdat
                <p className="text-xs text-slate-400 mt-1">Leave empty to see all history</p>
             </div>
             <div>
-                <label className="block text-sm font-medium text-slate-600 mb-2">Developers</label>
+                <label className="block text-sm font-medium text-slate-600 mb-2">Developers (Click 'x' to remove)</label>
                 <div className="flex flex-wrap gap-2">
-                   {allDevelopers.map(dev => (
-                       <button
-                         key={dev}
-                         onClick={() => toggleDeveloperFilter(dev)}
-                         className={`px-3 py-1 text-sm rounded-full border transition-colors ${
-                             selectedDevelopers.includes(dev)
-                             ? 'bg-indigo-100 border-indigo-200 text-indigo-700'
-                             : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                         }`}
-                       >
-                         {dev}
-                       </button>
-                   ))}
+                   {allDevelopers.map(dev => {
+                       const isSelected = selectedDevelopers.includes(dev);
+                       return (
+                           <div 
+                                key={dev}
+                                className={`inline-flex items-center rounded-full border transition-colors ${
+                                    isSelected
+                                    ? 'bg-indigo-100 border-indigo-200 text-indigo-700'
+                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                                }`}
+                           >
+                                <button
+                                    onClick={() => toggleDeveloperFilter(dev)}
+                                    className="px-3 py-1 text-sm rounded-l-full"
+                                >
+                                    {dev}
+                                </button>
+                                <button
+                                    onClick={(e) => confirmDeleteDeveloper(e, dev)}
+                                    className={`pr-2 pl-1 py-1 text-slate-400 hover:text-red-500 rounded-r-full transition-colors ${isSelected ? 'text-indigo-400 hover:text-red-500' : ''}`}
+                                    title={`Delete all data for ${dev}`}
+                                >
+                                    <X size={14} />
+                                </button>
+                           </div>
+                       );
+                   })}
                    {allDevelopers.length === 0 && <span className="text-sm text-slate-400">No developers found.</span>}
                 </div>
             </div>
