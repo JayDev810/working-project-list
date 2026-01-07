@@ -1,70 +1,164 @@
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { WorkRecord, ProjectEntry } from '../types';
 
-const STORAGE_KEY = 'daily_project_tracker_data';
+// --- CONFIGURATION ---
+// REPLACE THESE WITH YOUR ACTUAL SUPABASE KEYS
+const SUPABASE_URL = "https://ktgrmwajwiobqybvkhjw.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0Z3Jtd2Fqd2lvYnF5YnZraGp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc3NjY4OTUsImV4cCI6MjA4MzM0Mjg5NX0.oSmMgddeDOZoIhlU5XPfp4YN66wocv9sMW50nY6_w6o";
 
-const MOCK_DATA: WorkRecord[] = [
-  {
-    id: '1',
-    developerName: 'John Doe',
-    date: new Date().toISOString().split('T')[0],
-    month: new Date().toISOString().slice(0, 7),
-    projects: [
-      { id: 'p1', projectName: 'Frontend Revamp', taskDetails: 'Implemented new Tailwind config', workingHours: 4 },
-      { id: 'p2', projectName: 'API Integration', taskDetails: 'Connected auth endpoints', workingHours: 3.5 },
-    ],
-    totalProjects: 2,
-    totalHours: 7.5,
-    notes: 'Blocked on backend migration for user settings.',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: '2',
-    developerName: 'Jane Smith',
-    date: new Date().toISOString().split('T')[0],
-    month: new Date().toISOString().slice(0, 7),
-    projects: [
-      { id: 'p3', projectName: 'Database Migration', taskDetails: 'Schema updates', workingHours: 6 },
-    ],
-    totalProjects: 1,
-    totalHours: 6,
-    notes: '',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }
-];
+let supabase: SupabaseClient | null = null;
 
-export const getRecords = (): WorkRecord[] => {
-  const data = localStorage.getItem(STORAGE_KEY);
-  if (!data) {
-    // Initialize with mock data if empty
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(MOCK_DATA));
-    return MOCK_DATA;
+// --- Initialization ---
+const initSupabase = () => {
+  // Check against the default placeholder, not the actual ID
+  if (!SUPABASE_URL || SUPABASE_URL.includes("your-project-id")) {
+    console.warn("Supabase not configured. Please set API keys in trackerService.ts");
+    return;
   }
-  return JSON.parse(data);
+  try {
+    supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    console.log("Supabase client initialized for project:", SUPABASE_URL);
+  } catch (e) {
+    console.error("Failed to initialize Supabase", e);
+  }
 };
 
-export const saveRecord = (record: WorkRecord): void => {
-  const records = getRecords();
-  const existingIndex = records.findIndex((r) => r.id === record.id);
-  
-  if (existingIndex >= 0) {
-    records[existingIndex] = { ...record, updatedAt: new Date().toISOString() };
-  } else {
-    records.push({ ...record, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-  }
-  
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+initSupabase();
+
+export const isConfigured = (): boolean => {
+  return !!supabase && !SUPABASE_URL.includes("your-project-id");
 };
 
-export const deleteRecord = (id: string): void => {
-  const records = getRecords();
-  const newRecords = records.filter((r) => r.id !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(newRecords));
+// --- Data Methods ---
+
+export const subscribeToRecords = (
+  onData: (data: WorkRecord[]) => void,
+  onError?: (error: string) => void
+) => {
+  if (!isConfigured() || !supabase) {
+    if (onError) onError("MISSING_KEYS");
+    return () => {};
+  }
+
+  // 1. Fetch initial data
+  const fetchAll = async () => {
+    try {
+      // We store the whole object in a 'content' JSONB column to mimic NoSQL behavior easily
+      const { data, error } = await supabase!
+        .from('work_records')
+        .select('*');
+
+      if (error) {
+        // Handle specific 404/PGRST errors that might mean table doesn't exist
+        if (error.code === '42P01') {
+            throw new Error("Table 'work_records' not found. Please run the SQL setup script.");
+        }
+        throw error;
+      }
+      
+      const parsedRecords: WorkRecord[] = (data || []).map((row: any) => row.content);
+      onData(parsedRecords);
+    } catch (e: any) {
+      console.error("Error fetching records:", e);
+      if (onError) onError(e.message || "Failed to fetch data");
+    }
+  };
+
+  fetchAll();
+
+  // 2. Subscribe to changes
+  console.log("Subscribing to Supabase channel...");
+  const channel = supabase
+    .channel('public:work_records')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'work_records' },
+      (payload) => {
+        console.log('Change received!', payload);
+        // On any change, just re-fetch to keep it simple and consistent
+        fetchAll();
+      }
+    )
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        console.log('Supabase Realtime connected');
+      }
+      if (status === 'CHANNEL_ERROR') {
+        // This usually happens if Realtime is disabled or network fails
+        console.warn("Realtime channel error - falling back to basic fetch");
+        if (onError) onError("Realtime connection issue (Updates may be delayed)");
+      }
+    });
+
+  return () => {
+    supabase?.removeChannel(channel);
+  };
+};
+
+export const saveRecord = async (record: WorkRecord) => {
+  if (!isConfigured() || !supabase) throw new Error("Supabase not configured");
+
+  try {
+    // Upsert: matches on ID. We store the entire object in the 'content' column
+    const { error } = await supabase
+      .from('work_records')
+      .upsert({ 
+        id: record.id, 
+        content: record 
+      });
+
+    if (error) throw error;
+    console.log("Record saved to Supabase.");
+  } catch (e: any) {
+    console.error("Error saving record:", e);
+    throw new Error(e.message || "Failed to save");
+  }
+};
+
+export const deleteRecord = async (id: string) => {
+  if (!isConfigured() || !supabase) throw new Error("Supabase not configured");
+
+  try {
+    const { error } = await supabase
+      .from('work_records')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    console.log("Record deleted from Supabase.");
+  } catch (e: any) {
+    console.error("Error deleting record:", e);
+    throw new Error(e.message || "Failed to delete");
+  }
 };
 
 export const calculateTotalHours = (projects: ProjectEntry[]): number => {
   return projects.reduce((sum, p) => sum + (Number(p.workingHours) || 0), 0);
+};
+
+export const migrateLocalData = async () => {
+   if (!isConfigured() || !supabase) throw new Error("Supabase not connected");
+   
+   const STORAGE_KEY = 'daily_project_tracker_data';
+   const localData = localStorage.getItem(STORAGE_KEY);
+   if (localData) {
+       const records = JSON.parse(localData);
+       let count = 0;
+       
+       // Bulk insert/upsert
+       const rows = records.map((r: WorkRecord) => ({
+           id: r.id,
+           content: r
+       }));
+
+       const { error } = await supabase
+           .from('work_records')
+           .upsert(rows);
+
+       if (error) throw error;
+       return rows.length;
+   }
+   return 0;
 };
 
 export const exportToCSV = (records: WorkRecord[]): void => {
@@ -77,7 +171,7 @@ export const exportToCSV = (records: WorkRecord[]): void => {
       r.date,
       `"${r.developerName}"`,
       r.totalHours,
-      `"${r.notes.replace(/"/g, '""')}"`, // Escape quotes
+      `"${r.notes ? r.notes.replace(/"/g, '""') : ''}"`, 
       `"${projectString.replace(/"/g, '""')}"`
     ].join(',');
   });
