@@ -190,17 +190,44 @@ export const migrateLocalData = async () => {
 };
 
 export const exportToCSV = (records: WorkRecord[]): void => {
-  const headers = ['ID', 'Date', 'Developer', 'Total Hours', 'Notes', 'Projects (Name: Details [Hours])'];
-  
+  const headers = [
+    'Date',
+    'Developer',
+    'Total Projects',
+    'Project Name 1', 'Task Details 1', 'Working Hrs 1',
+    'Project Name 2', 'Task Details 2', 'Working Hrs 2',
+    'Project Name 3', 'Task Details 3', 'Working Hrs 3',
+    'Project Name 4', 'Task Details 4', 'Working Hrs 4',
+    'Total Hrs',
+    'Notes'
+  ];
+
   const csvRows = records.map(r => {
-    const projectString = r.projects.map(p => `${p.projectName}: ${p.taskDetails} [${p.workingHours}h]`).join(' | ');
+    // Prepare project columns (always 4 sets to align with headers)
+    const projectColumns: string[] = [];
+    
+    // We iterate 4 times because the form supports max 4 projects
+    for (let i = 0; i < 4; i++) {
+        const p = r.projects[i];
+        if (p) {
+            projectColumns.push(
+                `"${(p.projectName || '').replace(/"/g, '""')}"`,
+                `"${(p.taskDetails || '').replace(/"/g, '""')}"`,
+                (p.workingHours || 0).toString()
+            );
+        } else {
+            // Empty placeholders for missing projects
+            projectColumns.push('""', '""', '');
+        }
+    }
+
     return [
-      r.id,
       r.date,
-      `"${r.developerName}"`,
+      `"${(r.developerName || '').replace(/"/g, '""')}"`,
+      r.totalProjects,
+      ...projectColumns,
       r.totalHours,
-      `"${r.notes ? r.notes.replace(/"/g, '""') : ''}"`, 
-      `"${projectString.replace(/"/g, '""')}"`
+      `"${(r.notes || '').replace(/"/g, '""')}"`
     ].join(',');
   });
 
