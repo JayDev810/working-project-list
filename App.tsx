@@ -6,7 +6,8 @@ import {
   subscribeToRecords, 
   saveRecord, 
   deleteRecord, 
-  migrateLocalData
+  migrateLocalData,
+  fetchRecords
 } from './services/trackerService';
 import { LogOut, Shield, ArrowRight, User as UserIcon, Cloud, UploadCloud, AlertCircle, WifiOff, Database, RefreshCw } from 'lucide-react';
 
@@ -40,6 +41,11 @@ const App: React.FC = () => {
   const handleSaveRecord = async (record: WorkRecord) => {
     try {
         await saveRecord(record);
+        // Explicitly fetch latest data to ensure UI reflects changes immediately
+        // This is a backup in case realtime events are slow
+        const updatedRecords = await fetchRecords();
+        setRecords(updatedRecords);
+        setLastSynced(new Date());
     } catch (e: any) {
         alert("Failed to save record: " + e.message);
     }
@@ -48,6 +54,10 @@ const App: React.FC = () => {
   const handleDeleteRecord = async (id: string) => {
     try {
         await deleteRecord(id);
+        // Explicitly fetch latest data
+        const updatedRecords = await fetchRecords();
+        setRecords(updatedRecords);
+        setLastSynced(new Date());
     } catch (e: any) {
         alert("Failed to delete record: " + e.message);
     }
@@ -82,6 +92,9 @@ const App: React.FC = () => {
     setMigrating(true);
     try {
         const count = await migrateLocalData();
+        // Refresh local view
+        const updatedRecords = await fetchRecords();
+        setRecords(updatedRecords);
         alert(`Successfully migrated ${count} local records to the cloud.`);
     } catch (e) {
         alert("Migration failed. Ensure database is connected.");

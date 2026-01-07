@@ -31,6 +31,30 @@ export const isConfigured = (): boolean => {
 
 // --- Data Methods ---
 
+export const fetchRecords = async (): Promise<WorkRecord[]> => {
+  if (!isConfigured() || !supabase) throw new Error("Supabase not configured");
+
+  try {
+    // We store the whole object in a 'content' JSONB column to mimic NoSQL behavior easily
+    const { data, error } = await supabase
+      .from('work_records')
+      .select('*');
+
+    if (error) {
+      // Handle specific 404/PGRST errors that might mean table doesn't exist
+      if (error.code === '42P01') {
+          throw new Error("Table 'work_records' not found. Please run the SQL setup script.");
+      }
+      throw error;
+    }
+    
+    return (data || []).map((row: any) => row.content);
+  } catch (e: any) {
+    console.error("Error fetching records:", e);
+    throw e;
+  }
+};
+
 export const subscribeToRecords = (
   onData: (data: WorkRecord[]) => void,
   onError?: (error: string) => void
@@ -41,30 +65,16 @@ export const subscribeToRecords = (
   }
 
   // 1. Fetch initial data
-  const fetchAll = async () => {
+  const loadData = async () => {
     try {
-      // We store the whole object in a 'content' JSONB column to mimic NoSQL behavior easily
-      const { data, error } = await supabase!
-        .from('work_records')
-        .select('*');
-
-      if (error) {
-        // Handle specific 404/PGRST errors that might mean table doesn't exist
-        if (error.code === '42P01') {
-            throw new Error("Table 'work_records' not found. Please run the SQL setup script.");
-        }
-        throw error;
-      }
-      
-      const parsedRecords: WorkRecord[] = (data || []).map((row: any) => row.content);
-      onData(parsedRecords);
+      const records = await fetchRecords();
+      onData(records);
     } catch (e: any) {
-      console.error("Error fetching records:", e);
       if (onError) onError(e.message || "Failed to fetch data");
     }
   };
 
-  fetchAll();
+  loadData();
 
   // 2. Subscribe to changes
   console.log("Subscribing to Supabase channel...");
@@ -75,8 +85,8 @@ export const subscribeToRecords = (
       { event: '*', schema: 'public', table: 'work_records' },
       (payload) => {
         console.log('Change received!', payload);
-        // On any change, just re-fetch to keep it simple and consistent
-        fetchAll();
+        // On any change, re-fetch to keep it synced
+        loadData();
       }
     )
     .subscribe((status) => {
@@ -143,7 +153,6 @@ export const migrateLocalData = async () => {
    const localData = localStorage.getItem(STORAGE_KEY);
    if (localData) {
        const records = JSON.parse(localData);
-       let count = 0;
        
        // Bulk insert/upsert
        const rows = records.map((r: WorkRecord) => ({
