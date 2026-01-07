@@ -39,6 +39,21 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ currentUser, r
     }
   };
 
+  const handleSaveInternal = (record: WorkRecord) => {
+      // 1. Save the record (optimistic update happens in parent)
+      onSave(record);
+      
+      // 2. Ensure the filter is set to this record's month so the user sees it immediately
+      // This fixes the issue where adding a record for a different month makes it "disappear"
+      if (record.month !== filterMonth) {
+          setFilterMonth(record.month);
+      }
+      
+      // 3. Close modals
+      setIsCreating(false);
+      setEditingRecord(null);
+  };
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
@@ -75,10 +90,7 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ currentUser, r
           <div className="w-full max-w-2xl my-auto">
              <RecordForm
                 developerName={currentUser.name}
-                onSave={(r) => {
-                    onSave(r);
-                    setIsCreating(false);
-                }}
+                onSave={handleSaveInternal}
                 onCancel={() => setIsCreating(false)}
                 existingDates={existingDates}
              />
@@ -92,10 +104,7 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ currentUser, r
              <RecordForm
                 initialData={editingRecord}
                 developerName={currentUser.name}
-                onSave={(r) => {
-                    onSave(r);
-                    setEditingRecord(null);
-                }}
+                onSave={handleSaveInternal}
                 onCancel={() => setEditingRecord(null)}
                 isEditing={true}
              />
